@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { styled, ThemeProvider, createTheme } from '@mui/material/styles';
 import {
   Box,
@@ -25,6 +25,7 @@ import {
   AssignmentTurnedIn as StatusIcon,
   Comment as CommentsIcon,
   Save as SaveIcon,
+  Mic as MicIcon,
 } from '@mui/icons-material';
 
 const SmallTextField = styled(TextField)({
@@ -68,6 +69,33 @@ function AuditAreaInput() {
     status: '',
     comments: '',
   });
+  const [recognition, setRecognition] = useState(null);
+  const [currentField, setCurrentField] = useState('');
+  const [recognitionActive, setRecognitionActive] = useState(false);
+
+  const objectiveRef = useRef(null);
+  const commentsRef = useRef(null);
+
+  useEffect(() => {
+    if ('webkitSpeechRecognition' in window) {
+      const SpeechRecognition = window.webkitSpeechRecognition;
+      const recognitionInstance = new SpeechRecognition();
+      recognitionInstance.continuous = false;
+      recognitionInstance.interimResults = false;
+      recognitionInstance.lang = 'en-US';
+      recognitionInstance.onresult = (event) => {
+        const speechResult = event.results[0][0].transcript;
+        setFormValues((prevValues) => ({
+          ...prevValues,
+          [currentField]: prevValues[currentField] + ' ' + speechResult,
+        }));
+      };
+      recognitionInstance.onend = () => {
+        setRecognitionActive(false);
+      };
+      setRecognition(recognitionInstance);
+    }
+  }, [currentField]);
 
   const handleChange = (event) => {
     setInputValue(event.target.value);
@@ -101,6 +129,28 @@ function AuditAreaInput() {
 
   const handleDrawerClick = (event) => {
     event.stopPropagation();
+  };
+
+  const startRecognition = (fieldName) => {
+    if (recognitionActive) {
+      recognition.stop();
+      setRecognitionActive(false);
+    }
+    setCurrentField(fieldName);
+    if (fieldName === 'objective') {
+      objectiveRef.current.focus();
+    } else if (fieldName === 'comments') {
+      commentsRef.current.focus();
+    }
+    recognition.start();
+    setRecognitionActive(true);
+  };
+
+  const stopRecognition = () => {
+    if (recognitionActive) {
+      recognition.stop();
+      setRecognitionActive(false);
+    }
   };
 
   return (
@@ -151,7 +201,11 @@ function AuditAreaInput() {
                 variant="outlined"
                 value={formValues.objective}
                 onChange={handleFormChange}
+                inputRef={objectiveRef}
               />
+              <IconButton onClick={() => startRecognition('objective')}>
+                <MicIcon />
+              </IconButton>
             </Box>
             <Box display="flex" alignItems="center">
               <FrequencyIcon sx={{ mr: 2 }} />
@@ -244,25 +298,30 @@ function AuditAreaInput() {
                 rows={4}
                 value={formValues.comments}
                 onChange={handleFormChange}
+                inputRef={commentsRef}
               />
+              <IconButton onClick={() => startRecognition('comments')}>
+                <MicIcon />
+              </IconButton>
             </Box>
             <Button
               variant="contained"
               color="primary"
               startIcon={<SaveIcon />}
               sx={{ mt: 2 }}
-              onClick={() => { 
+              onClick={() => {
+                stopRecognition();
                 setDrawerOpen(false);
-                handleClick(); 
+                handleClick();
               }}
             >
               Save
             </Button>
           </Box>
         </Drawer>
-        <Snackbar 
-          open={open} 
-          autoHideDuration={6000} 
+        <Snackbar
+          open={open}
+          autoHideDuration={6000}
           onClose={handleClose}
           anchorOrigin={{ vertical: 'top', horizontal: 'left' }}
         >
